@@ -11,6 +11,8 @@ _STYLE = Style.from_dict(
     {
         "status-bar": "bg:#444444 #ffffff bold",
         "separator": "bg:#333333 #555555",
+        "prompt": "#00aa00 bold",
+        "prompt.dots": "#555555",
     }
 )
 
