@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from prompt_toolkit.application.current import get_app
 
 if TYPE_CHECKING:
+    from flaura.plugins.registry import PluginRegistry
     from flaura.ui.output import OutputPane
 
 
@@ -13,11 +14,12 @@ def CommandAnalysis(text: str, output: OutputPane) -> None:
 
 
 class Dispatcher:
-    def __init__(self, output: OutputPane) -> None:
+    def __init__(self, output: OutputPane, registry: PluginRegistry) -> None:
         self._output = output
+        self._registry = registry
 
     def dispatch(self, text: str) -> None:
-        CommandAnalysis(text, self._output)
+        self._registry.active.on_submit(text)
         try:
             get_app().invalidate()
         except Exception:
