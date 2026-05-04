@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from enum import Enum
 
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
@@ -16,10 +17,16 @@ from flaura.ui.prompt_style import DefaultPrompt
 SubmitCallback = Callable[[str], None]
 
 
+class InputMode(Enum):
+    EDIT = "edit"
+    PROMPT = "prompt"
+
+
 class InputPane:
     def __init__(self) -> None:
         self._on_submit: SubmitCallback | None = None
         self._prompt_style = DefaultPrompt()
+        self._mode = InputMode.EDIT
 
         self.buffer = Buffer(
             name="input",
@@ -30,13 +37,18 @@ class InputPane:
 
         kb = KeyBindings()
 
-        @kb.add("enter")
-        def _newline(event) -> None:
-            event.current_buffer.insert_text("\n")
+        @kb.add("escape", eager=True)
+        def _toggle_mode(event) -> None:
+            self._mode = InputMode.PROMPT if self._mode == InputMode.EDIT else InputMode.EDIT
+            event.app.invalidate()
 
-        @kb.add("escape", "enter")
-        def _submit(event) -> None:
-            event.current_buffer.validate_and_handle()
+        @kb.add("enter")
+        def _enter(event) -> None:
+            if self._mode == InputMode.PROMPT:
+                self._mode = InputMode.EDIT
+                event.current_buffer.validate_and_handle()
+            else:
+                event.current_buffer.insert_text("\n")
 
         self.control = BufferControl(buffer=self.buffer, key_bindings=kb)
         self.window = Window(
@@ -54,11 +66,15 @@ class InputPane:
     def on_submit(self, callback: SubmitCallback) -> None:
         self._on_submit = callback
 
+    @property
+    def mode(self) -> InputMode:
+        return self._mode
+
     def _on_accept(self, buffer: Buffer) -> bool:
         text = buffer.text
         if text and self._on_submit:
             self._on_submit(text)
-        return False  # False = clear the buffer after handling
+        return False
 
     def _height(self) -> int:
         try:

@@ -13,6 +13,8 @@ _STYLE = Style.from_dict(
         "separator": "bg:#333333 #555555",
         "prompt": "#00aa00 bold",
         "prompt.dots": "#555555",
+        "mode.multi": "bg:#333333 #666666",
+        "mode.single": "bg:#50fa7b #000000",
     }
 )
 

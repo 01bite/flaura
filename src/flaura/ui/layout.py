@@ -18,7 +18,7 @@ class FlauraLayout:
 
         container = HSplit(
             [
-                create_status_bar(),
+                create_status_bar(lambda: self.input_pane.mode.value),
                 self.output_pane.window,
                 separator,
                 self.input_pane.window,
