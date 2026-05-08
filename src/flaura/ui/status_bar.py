@@ -11,9 +11,9 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 
 def create_status_bar(
     get_mode: Callable[[], str],
-    get_plugin_name: Callable[[], str],
     get_provider_name: Callable[[], str],
     get_thinking: Callable[[], bool],
+    get_plugin_count: Callable[[], int],
 ) -> Window:
     def _text() -> StyleAndTextTuples:
         try:
@@ -23,11 +23,11 @@ def create_status_bar(
             cols = 80
             vi_on = False
 
-        plugin = get_plugin_name()
         provider = get_provider_name()
+        n_plugins = get_plugin_count()
         thinking = get_thinking()
 
-        left = f"flaura · {plugin} · {provider}"
+        left = f"flaura · {provider} · {n_plugins} plugins"
         thinking_part = " [thinking] " if thinking else ""
         vi_part = " [vi] " if vi_on else ""
 

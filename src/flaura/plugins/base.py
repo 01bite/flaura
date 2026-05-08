@@ -1,34 +1,22 @@
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 
-from prompt_toolkit.completion import Completer
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.lexers import Lexer, SimpleLexer
-
-from flaura.ui.prompt_style import DefaultPrompt, PromptStyle
+from flaura.plugins.types import Tool
 
 
-class PromptPlugin(ABC):
+class Plugin(ABC):
+    """A plugin packages one or more tools the agent can call.
+
+    All registered plugins are loaded simultaneously. The agent decides which
+    tools to use based on its reasoning — there is no "active" plugin concept.
+    Plugins are toolboxes, not modes.
+    """
+
     name: str
+    description: str
 
-    def get_lexer(self) -> Lexer:
-        return SimpleLexer()
-
-    def get_completer(self) -> Completer | None:
-        return None
-
-    def get_prompt_style(self) -> PromptStyle:
-        return DefaultPrompt()
-
-    def get_key_bindings(self) -> KeyBindings:
-        return KeyBindings()
-
-    def is_multiline(self, text: str) -> bool:
-        return False
-
-    def on_submit(self, text: str) -> None:
-        pass
-
-    def get_title(self) -> str:
-        return self.name
+    @abstractmethod
+    def get_tools(self) -> list[Tool]:
+        """Return the tools this plugin exposes."""
+        ...

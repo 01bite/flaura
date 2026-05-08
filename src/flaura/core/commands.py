@@ -51,24 +51,46 @@ def cmd_set(app: FlauraApp, args: list[str]) -> str | None:
     return None
 
 
+def cmd_plugins(app: FlauraApp, args: list[str]) -> str | None:
+    plugins = app.list_plugins()
+    if not plugins:
+        return "no plugins loaded"
+    lines = [f"  {p.name:<16} {p.description}" for p in plugins]
+    return "loaded plugins:\n" + "\n".join(lines)
+
+
+def cmd_tools(app: FlauraApp, args: list[str]) -> str | None:
+    tools = app.list_tools()
+    if not tools:
+        return "no tools available"
+    lines = [f"  {t.name:<20} ({t.plugin_name})  — {t.description}" for t in tools]
+    return "available tools:\n" + "\n".join(lines)
+
+
 def cmd_plugin(app: FlauraApp, args: list[str]) -> str | None:
     if not args:
-        return f"usage: :plugin <name>; available: {app.list_plugins()}"
-    try:
-        app.switch_plugin(args[0])
-    except KeyError as e:
-        return str(e)
-    return None
-
-
-def cmd_window(app: FlauraApp, args: list[str]) -> str | None:
-    return "windows not yet implemented (Phase 15)"
+        return "usage: :plugin install <git-url> | :plugin remove <name>"
+    sub = args[0]
+    if sub == "install":
+        if len(args) < 2:
+            return "usage: :plugin install <git-url>"
+        return f"install not yet wired — would clone {args[1]} to ~/.flaura/plugins/"
+    if sub == "remove":
+        if len(args) < 2:
+            return "usage: :plugin remove <name>"
+        try:
+            app.unregister_plugin(args[1])
+            return f"removed plugin: {args[1]}"
+        except Exception as e:
+            return f"error: {e}"
+    return f"unknown subcommand: {sub}"
 
 
 def make_default_registry() -> CommandRegistry:
     reg = CommandRegistry()
     reg.register("quit", cmd_quit)
     reg.register("set", cmd_set)
+    reg.register("plugins", cmd_plugins)
+    reg.register("tools", cmd_tools)
     reg.register("plugin", cmd_plugin)
-    reg.register("window", cmd_window)
     return reg

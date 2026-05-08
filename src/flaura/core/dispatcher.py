@@ -11,10 +11,6 @@ if TYPE_CHECKING:
     from flaura.ui.output import OutputPane
 
 
-def CommandAnalysis(text: str, output: OutputPane) -> None:
-    output.append(f"> {text}\n")
-
-
 class Dispatcher:
     def __init__(
         self,
@@ -33,7 +29,6 @@ class Dispatcher:
         return self._thinking
 
     def dispatch(self, text: str) -> None:
-        # Cancel any in-flight stream — new turn supersedes the old one
         if self._current_task is not None and not self._current_task.done():
             self._current_task.cancel()
 
@@ -49,25 +44,34 @@ class Dispatcher:
         self._thinking = True
         self._invalidate()
 
+        # Echo the user's input
+        self._output.append(f"> {text}\n")
+        self._invalidate()
+
         try:
             try:
-                self._registry.active.on_submit(text)
-            except Exception as e:
-                self._output.append(f"[plugin error: {e}]\n")
-            self._invalidate()
-
-            try:
-                async for chunk in self._agent.run(text):
+                tools = self._registry.get_tool_schemas()
+                async for chunk in self._agent.run(text, tools=tools):
                     if chunk.type == "text_delta":
                         if self._thinking:
                             self._thinking = False
                             self._invalidate()
                         self._output.append(chunk.text)
                         self._invalidate()
+                    elif chunk.type == "tool_use":
+                        # Run the requested tool through the registry
+                        result = self._registry.execute_tool(
+                            chunk.tool_name, chunk.tool_args
+                        )
+                        marker = "tool_error" if result.is_error else "tool"
+                        self._output.append(
+                            f"\n[{marker}: {chunk.tool_name}] {result.content}\n"
+                        )
+                        self._invalidate()
+                        # Phase 9 will send the result back to the provider
                     elif chunk.type == "done":
                         self._output.append("\n")
                         self._invalidate()
-                    # tool_use handled in Phase 9
             except asyncio.CancelledError:
                 self._output.append("\n[cancelled]\n")
                 self._invalidate()
@@ -76,7 +80,6 @@ class Dispatcher:
                 self._output.append(f"\n[agent error: {e}]\n")
                 self._invalidate()
         finally:
-            # Only clear thinking if a newer task hasn't replaced us
             if asyncio.current_task() is self._current_task or my_task is self._current_task:
                 self._thinking = False
                 self._invalidate()
