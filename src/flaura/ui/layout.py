@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from prompt_toolkit.layout import FloatContainer, HSplit, Layout, Window
@@ -16,7 +17,12 @@ if TYPE_CHECKING:
 
 
 class FlauraLayout:
-    def __init__(self, registry: PluginRegistry) -> None:
+    def __init__(
+        self,
+        registry: PluginRegistry,
+        get_provider_name: Callable[[], str],
+        get_thinking: Callable[[], bool],
+    ) -> None:
         self._registry = registry
 
         self.search_toolbar = SearchToolbar()
@@ -28,8 +34,10 @@ class FlauraLayout:
 
         body = HSplit([
             create_status_bar(
-                get_mode=lambda: self.input_pane.mode.value,
+                get_mode=lambda: self.input_pane.mode,
                 get_plugin_name=lambda: self._registry.active.get_title(),
+                get_provider_name=get_provider_name,
+                get_thinking=get_thinking,
             ),
             self.output_pane.window,
             separator,

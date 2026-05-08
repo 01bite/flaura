@@ -4,6 +4,8 @@ from prompt_toolkit import Application
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.styles import Style
 
+from flaura.agent.core import AgentCore
+from flaura.agent.providers.echo import EchoProvider
 from flaura.core.commands import make_default_registry
 from flaura.core.dispatcher import Dispatcher
 from flaura.plugins.default import DefaultPlugin
@@ -16,6 +18,7 @@ _STYLE = Style.from_dict(
     {
         "status-bar":                  "bg:#444444 #ffffff bold",
         "status-bar.vi":               "bg:#444444 #ff8800 bold",
+        "status-bar.thinking":         "bg:#444444 #00ddff bold",
         "separator":                   "bg:#333333 #555555",
         "prompt":                      "#00aa00 bold",
         "prompt.dots":                 "#555555",
@@ -47,10 +50,18 @@ _STYLE = Style.from_dict(
 
 class FlauraApp:
     def __init__(self) -> None:
+        # Predeclared so status-bar callables don't AttributeError if rendered early
+        self._agent: AgentCore | None = None
+        self._dispatcher: Dispatcher | None = None
+
         self._registry = PluginRegistry()
         self._commands = make_default_registry()
 
-        self._layout_manager = FlauraLayout(self._registry)
+        self._layout_manager = FlauraLayout(
+            registry=self._registry,
+            get_provider_name=self.provider_name,
+            get_thinking=self.is_thinking,
+        )
 
         self._command_overlay = CommandOverlay(
             app=self,
@@ -61,7 +72,13 @@ class FlauraApp:
 
         self._registry.register(DefaultPlugin(self._layout_manager.output_pane))
 
-        self._dispatcher = Dispatcher(self._layout_manager.output_pane, self._registry)
+        self._agent = AgentCore(EchoProvider())
+
+        self._dispatcher = Dispatcher(
+            output=self._layout_manager.output_pane,
+            registry=self._registry,
+            agent=self._agent,
+        )
         self._layout_manager.input_pane.on_submit(self._dispatcher.dispatch)
 
         self._app = Application(
@@ -71,6 +88,14 @@ class FlauraApp:
             full_screen=True,
             mouse_support=True,
         )
+
+    # ── status-bar callables ─────────────────────────────────────────────
+
+    def provider_name(self) -> str:
+        return self._agent.provider.name if self._agent else "—"
+
+    def is_thinking(self) -> bool:
+        return self._dispatcher.thinking if self._dispatcher else False
 
     # ── public API used by command handlers ──────────────────────────────
 

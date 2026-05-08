@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from enum import Enum
 from typing import TYPE_CHECKING
 
 from prompt_toolkit.application.current import get_app
@@ -27,33 +26,22 @@ SubmitCallback = Callable[[str], None]
 OpenOverlay = Callable[[], None]
 
 
-class InputMode(Enum):
-    EDIT = "edit"
-    PROMPT = "prompt"
-
-
 class InputPane:
     def __init__(self, registry: PluginRegistry) -> None:
         self._registry = registry
         self._on_submit: SubmitCallback | None = None
-        self._mode = InputMode.EDIT
         self._search_target: _BC | None = None
         self._open_overlay: OpenOverlay | None = None
 
         self.buffer = Buffer(
             name="input",
-            multiline=True,
+            multiline=True,  # needed so newlines (from Shift+Enter, paste) survive in the buffer
             accept_handler=self._on_accept,
             history=FileHistory(str(get_history_path())),
             completer=DynamicCompleter(lambda: self._registry.active.get_completer()),
         )
 
         kb = KeyBindings()
-
-        @kb.add("escape", eager=True)
-        def _toggle_mode(event) -> None:
-            self._mode = InputMode.PROMPT if self._mode == InputMode.EDIT else InputMode.EDIT
-            event.app.invalidate()
 
         @kb.add("tab")
         def _complete(event) -> None:
@@ -64,18 +52,25 @@ class InputPane:
             if self._search_target is not None:
                 start_search(self._search_target)
 
-        @kb.add(":", filter=Condition(lambda: self._mode == InputMode.PROMPT))
+        # ":" opens the command overlay only when the buffer is empty.
+        # Anywhere else, ":" is a literal character.
+        @kb.add(":", filter=Condition(lambda: len(self.buffer.text) == 0))
         def _open_command(event) -> None:
             if self._open_overlay is not None:
                 self._open_overlay()
 
+        # Plain Enter submits.
         @kb.add("enter")
-        def _enter(event) -> None:
-            if self._mode == InputMode.PROMPT:
-                self._mode = InputMode.EDIT
-                event.current_buffer.validate_and_handle()
-            else:
-                event.current_buffer.insert_text("\n")
+        def _submit(event) -> None:
+            event.current_buffer.validate_and_handle()
+
+        # Alt+Enter / Meta+Enter (Esc then Enter chord) inserts a newline.
+        # Terminals can't natively distinguish Shift+Enter from Enter, so this
+        # is the universal binding. To use Shift+Enter, configure your terminal
+        # to send the same escape sequence (see notes in this file).
+        @kb.add("escape", "enter")
+        def _newline(event) -> None:
+            event.current_buffer.insert_text("\n")
 
         self.control = BufferControl(
             buffer=self.buffer,
@@ -104,8 +99,9 @@ class InputPane:
         self._open_overlay = fn
 
     @property
-    def mode(self) -> InputMode:
-        return self._mode
+    def mode(self) -> str:
+        """Contextual: 'multi' if buffer has newlines, 'single' otherwise."""
+        return "multi" if "\n" in self.buffer.text else "single"
 
     def _on_accept(self, buffer: Buffer) -> bool:
         text = buffer.text
