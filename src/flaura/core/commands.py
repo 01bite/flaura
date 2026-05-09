@@ -86,12 +86,7 @@ def cmd_plugin(app: FlauraApp, args: list[str]) -> str | None:
     return f"unknown subcommand: {sub}"
 
 
-_PROVIDERS = ("anthropic", "echo")
-_ANTHROPIC_MODELS = (
-    "claude-opus-4-7",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5-20251001",
-)
+_PROVIDERS = ("ollama", "echo")
 
 
 def cmd_provider(app: FlauraApp, args: list[str]) -> str | None:

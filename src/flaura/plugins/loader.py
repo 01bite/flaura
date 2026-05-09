@@ -8,6 +8,7 @@ Each plugin lives in its own directory:
 
 `:plugin install <git-url>` (future) clones a repo into this directory.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -55,9 +56,7 @@ def _load_plugin_from_dir(path: Path) -> Plugin | None:
 
     class_name = meta.get("entry_point", "").split(":", 1)[-1] or None
 
-    spec = importlib.util.spec_from_file_location(
-        f"flaura_user_plugins.{path.name}", py_path
-    )
+    spec = importlib.util.spec_from_file_location(f"flaura_user_plugins.{path.name}", py_path)
     if spec is None or spec.loader is None:
         return None
     module = importlib.util.module_from_spec(spec)

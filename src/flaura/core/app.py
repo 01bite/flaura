@@ -46,10 +46,7 @@ class FlauraApp:
             executor=self._execute_command,
         )
 
-        self._agent = self._make_provider(
-            self._config.provider,
-            model=self._config.anthropic_model,
-        )
+        self._agent = self._make_provider(self._config.provider)
 
         if self._config.vi_mode:
             # Applied after Application is created — stored for __init__ order
@@ -76,15 +73,12 @@ class FlauraApp:
     # ── provider factory ─────────────────────────────────────────────────────
 
     def _make_provider(self, name: str, model: str | None = None) -> AgentCore:
-        if name == "anthropic":
-            from flaura.agent.providers.anthropic import AnthropicProvider
-            kwargs: dict = {
-                "model": model or self._config.anthropic_model,
-                "max_tokens": self._config.anthropic_max_tokens,
-            }
-            if self._config.anthropic_api_key:
-                kwargs["api_key"] = self._config.anthropic_api_key
-            return AgentCore(AnthropicProvider(**kwargs))
+        if name == "ollama":
+            from flaura.agent.providers.ollama import OllamaProvider
+            return AgentCore(OllamaProvider(
+                model=model or self._config.ollama_model,
+                host=self._config.ollama_host,
+            ))
         # default / "echo"
         from flaura.agent.providers.echo import EchoProvider
         return AgentCore(EchoProvider())
@@ -108,6 +102,9 @@ class FlauraApp:
 
     def list_plugins(self):
         return self._registry.list_plugins()
+
+    def ollama_host(self) -> str:
+        return self._config.ollama_host
 
     def list_tools(self):
         return self._registry.list_tools()

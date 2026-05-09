@@ -38,15 +38,13 @@ _DEFAULT_CONFIG_TOML = """\
 # See https://github.com/your/flaura for documentation.
 
 [app]
-# Provider used at startup.  Options: "echo", "anthropic"
+# Provider used at startup.  Options: "echo", "ollama"
 provider = "echo"
 
-[providers.anthropic]
-model = "claude-sonnet-4-6"
-max_tokens = 8096
-# Credentials: set here OR via the ANTHROPIC_API_KEY environment variable.
-# The environment variable always takes precedence.
-# api_key = "sk-ant-..."
+[providers.ollama]
+# Talks to a local Ollama server.  Pull the model first: `ollama pull <name>`.
+model = "llama3.2"
+host = "http://localhost:11434"
 
 [ui]
 vi_mode = false
@@ -87,10 +85,9 @@ class FlauraConfig:
     # ── app ──────────────────────────────────────────────────────────────────
     provider: str = "echo"
 
-    # ── providers.anthropic ──────────────────────────────────────────────────
-    anthropic_model: str = "claude-sonnet-4-6"
-    anthropic_max_tokens: int = 8096
-    anthropic_api_key: str | None = None
+    # ── providers.ollama ─────────────────────────────────────────────────────
+    ollama_model: str = "llama3.2"
+    ollama_host: str = "http://localhost:11434"
 
     # ── ui ───────────────────────────────────────────────────────────────────
     vi_mode: bool = False
@@ -135,13 +132,9 @@ class FlauraConfig:
 
         # 5. Merge sections
         _apply_app(cfg, data.get("app", {}))
-        _apply_anthropic(cfg, data.get("providers", {}).get("anthropic", {}))
+        providers = data.get("providers", {})
+        _apply_ollama(cfg, providers.get("ollama", {}))
         _apply_ui(cfg, data.get("ui", {}))
-
-        # 6. Env var overrides — always win for credentials
-        env_key = os.environ.get("ANTHROPIC_API_KEY")
-        if env_key:
-            cfg.anthropic_api_key = env_key
 
         return cfg
 
@@ -153,14 +146,11 @@ def _apply_app(cfg: FlauraConfig, section: dict[str, Any]) -> None:
         cfg.provider = str(section["provider"])
 
 
-def _apply_anthropic(cfg: FlauraConfig, section: dict[str, Any]) -> None:
+def _apply_ollama(cfg: FlauraConfig, section: dict[str, Any]) -> None:
     if "model" in section:
-        cfg.anthropic_model = str(section["model"])
-    if "max_tokens" in section:
-        cfg.anthropic_max_tokens = int(section["max_tokens"])
-    if "api_key" in section:
-        value = str(section["api_key"]).strip()
-        cfg.anthropic_api_key = value if value else None
+        cfg.ollama_model = str(section["model"])
+    if "host" in section:
+        cfg.ollama_host = str(section["host"])
 
 
 def _apply_ui(cfg: FlauraConfig, section: dict[str, Any]) -> None:

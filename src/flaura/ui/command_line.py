@@ -1,14 +1,41 @@
 from __future__ import annotations
 
+import json
+import time
+import urllib.error
+import urllib.request
 from typing import TYPE_CHECKING
 
 from prompt_toolkit.completion import Completer, Completion
 
-from flaura.core.commands import _ANTHROPIC_MODELS, _PROVIDERS
+from flaura.core.commands import _PROVIDERS
 
 if TYPE_CHECKING:
     from flaura.core.app import FlauraApp
     from flaura.core.commands import CommandRegistry
+
+
+# Cache (host -> (models, expires_at)) so repeated tab presses don't re-fetch.
+_OLLAMA_CACHE_TTL = 5.0
+_ollama_cache: dict[str, tuple[list[str], float]] = {}
+
+
+def _fetch_ollama_models(host: str) -> list[str]:
+    cached = _ollama_cache.get(host)
+    now = time.monotonic()
+    if cached and cached[1] > now:
+        return cached[0]
+
+    models: list[str] = []
+    try:
+        with urllib.request.urlopen(f"{host.rstrip('/')}/api/tags", timeout=0.5) as r:
+            data = json.load(r)
+        models = [m["name"] for m in data.get("models", []) if "name" in m]
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError):
+        pass
+
+    _ollama_cache[host] = (models, now + _OLLAMA_CACHE_TTL)
+    return models
 
 
 class CommandCompleter(Completer):
@@ -49,11 +76,19 @@ class CommandCompleter(Completer):
                     yield Completion(p.name, start_position=-len(rest))
 
         elif cmd == "provider" and len(parts) == 2:
-            for p in _PROVIDERS:
-                if p.startswith(rest):
-                    yield Completion(p, start_position=-len(rest))
+            # If the user has already typed a complete provider that takes a
+            # model arg (e.g. "provider ollama"), jump straight to model
+            # completions — insert " <model>" after the cursor so the
+            # resulting text is "provider ollama <model>".
+            if rest == "ollama":
+                for m in _fetch_ollama_models(self._app.ollama_host()):
+                    yield Completion(" " + m, start_position=0, display=m)
+            else:
+                for p in _PROVIDERS:
+                    if p.startswith(rest):
+                        yield Completion(p, start_position=-len(rest))
 
-        elif cmd == "provider" and len(parts) == 3 and parts[1] == "anthropic":
-            for m in _ANTHROPIC_MODELS:
+        elif cmd == "provider" and len(parts) == 3 and parts[1] == "ollama":
+            for m in _fetch_ollama_models(self._app.ollama_host()):
                 if m.startswith(rest):
                     yield Completion(m, start_position=-len(rest))
