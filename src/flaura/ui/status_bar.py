@@ -31,9 +31,9 @@ def create_status_bar(
         thinking_part = " [thinking] " if thinking else ""
         vi_part = " [vi] " if vi_on else ""
 
-        if get_mode() == "single":
-            right = " SINGLE "
-            right_style = "class:mode.single"
+        if get_mode() == "normal":
+            right = " NORMAL "
+            right_style = "class:mode.normal"
         else:
             right = " MULTI "
             right_style = "class:mode.multi"

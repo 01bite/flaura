@@ -18,16 +18,17 @@ from pathlib import Path
 from flaura.plugins.base import Plugin
 
 
-def user_plugins_dir() -> Path:
-    p = Path.home() / ".flaura" / "plugins"
+def user_plugins_dir(app_home: Path | None = None) -> Path:
+    base = app_home if app_home is not None else Path.home() / ".flaura"
+    p = base / "plugins"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
-def discover_user_plugins() -> list[Plugin]:
-    """Walk ~/.flaura/plugins/ and instantiate every Plugin subclass found."""
+def discover_user_plugins(app_home: Path | None = None) -> list[Plugin]:
+    """Walk <app_home>/plugins/ and instantiate every Plugin subclass found."""
     plugins: list[Plugin] = []
-    root = user_plugins_dir()
+    root = user_plugins_dir(app_home)
 
     for entry in sorted(root.iterdir()):
         if not entry.is_dir():

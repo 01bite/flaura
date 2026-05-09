@@ -5,7 +5,7 @@ from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.styles import Style
 
 from flaura.agent.core import AgentCore
-from flaura.agent.providers.echo import EchoProvider
+from flaura.config import FlauraConfig
 from flaura.core.commands import make_default_registry
 from flaura.core.dispatcher import Dispatcher
 from flaura.plugins.builtin import BUILTIN_PLUGINS
@@ -15,49 +15,23 @@ from flaura.ui.command_line import CommandCompleter
 from flaura.ui.key_bindings import create_global_key_bindings
 from flaura.ui.layout import FlauraLayout
 
-_STYLE = Style.from_dict(
-    {
-        "status-bar":                  "bg:#444444 #ffffff bold",
-        "status-bar.vi":               "bg:#444444 #ff8800 bold",
-        "status-bar.thinking":         "bg:#444444 #00ddff bold",
-        "separator":                   "bg:#333333 #555555",
-        "prompt":                      "#00aa00 bold",
-        "prompt.dots":                 "#555555",
-        "command-prompt":              "#ffaa00 bold",
-        "mode.multi":                  "bg:#333333 #666666",
-        "mode.single":                 "bg:#50fa7b #000000",
-        "completion-menu":                      "bg:#2d2d2d #ffffff",
-        "completion-menu.completion":           "bg:#2d2d2d #ffffff",
-        "completion-menu.completion.current":   "bg:#00aa00 #000000 bold",
-        "completion-menu.meta.completion":      "bg:#222222 #888888",
-        "completion-menu.meta.completion.current": "bg:#007700 #ffffff",
-        "scrollbar.background":        "bg:#1a1a1a",
-        "scrollbar.button":            "bg:#555555",
-        "search":                      "bg:#440044 #ffffff",
-        "search.current":              "bg:#aa00aa #ffffff bold",
-        "search-toolbar":              "bg:#222222 #ffaa00",
-    }
-)
-
 
 class FlauraApp:
-    def __init__(self) -> None:
+    def __init__(self, config: FlauraConfig | None = None) -> None:
+        self._config = config or FlauraConfig.load()
         self._agent: AgentCore | None = None
         self._dispatcher: Dispatcher | None = None
 
         self._registry = PluginRegistry()
         self._commands = make_default_registry()
 
-        # Load built-in plugins (always available)
         for plugin_class in BUILTIN_PLUGINS:
             self._registry.register(plugin_class())
 
-        # Load user-installed plugins from ~/.flaura/plugins/
-        for plugin in discover_user_plugins():
+        for plugin in discover_user_plugins(app_home=self._config.app_home):
             try:
                 self._registry.register(plugin)
             except ValueError as e:
-                # Conflict with a builtin or another user plugin
                 import sys
                 sys.stderr.write(f"[flaura] {e}\n")
 
@@ -72,7 +46,16 @@ class FlauraApp:
             executor=self._execute_command,
         )
 
-        self._agent = AgentCore(EchoProvider())
+        self._agent = self._make_provider(
+            self._config.provider,
+            model=self._config.anthropic_model,
+        )
+
+        if self._config.vi_mode:
+            # Applied after Application is created — stored for __init__ order
+            self._start_in_vi = True
+        else:
+            self._start_in_vi = False
 
         self._dispatcher = Dispatcher(
             output=self._layout_manager.output_pane,
@@ -84,19 +67,36 @@ class FlauraApp:
         self._app = Application(
             layout=self._layout_manager.layout,
             key_bindings=create_global_key_bindings(),
-            style=_STYLE,
+            style=Style.from_dict(self._config.colors),
             full_screen=True,
             mouse_support=True,
+            editing_mode=EditingMode.VI if self._config.vi_mode else EditingMode.EMACS,
         )
 
-    # ── command-mode executor ────────────────────────────────────────────
+    # ── provider factory ─────────────────────────────────────────────────────
+
+    def _make_provider(self, name: str, model: str | None = None) -> AgentCore:
+        if name == "anthropic":
+            from flaura.agent.providers.anthropic import AnthropicProvider
+            kwargs: dict = {
+                "model": model or self._config.anthropic_model,
+                "max_tokens": self._config.anthropic_max_tokens,
+            }
+            if self._config.anthropic_api_key:
+                kwargs["api_key"] = self._config.anthropic_api_key
+            return AgentCore(AnthropicProvider(**kwargs))
+        # default / "echo"
+        from flaura.agent.providers.echo import EchoProvider
+        return AgentCore(EchoProvider())
+
+    # ── command-mode executor ────────────────────────────────────────────────
 
     def _execute_command(self, line: str) -> None:
         result = self._commands.execute(self, line)
         if result:
             self.message(f"{result}\n")
 
-    # ── status-bar callables ─────────────────────────────────────────────
+    # ── status-bar callables ─────────────────────────────────────────────────
 
     def provider_name(self) -> str:
         return self._agent.provider.name if self._agent else "—"
@@ -104,7 +104,7 @@ class FlauraApp:
     def is_thinking(self) -> bool:
         return self._dispatcher.thinking if self._dispatcher else False
 
-    # ── public API used by command handlers ──────────────────────────────
+    # ── public API used by command handlers ──────────────────────────────────
 
     def list_plugins(self):
         return self._registry.list_plugins()
@@ -119,6 +119,13 @@ class FlauraApp:
     def set_vi_mode(self, on: bool) -> None:
         self._app.editing_mode = EditingMode.VI if on else EditingMode.EMACS
         self._app.invalidate()
+
+    def set_provider(self, provider_name: str, model: str | None = None) -> str:
+        """Switch the active agent provider. Returns the new provider label."""
+        self._agent = self._make_provider(provider_name, model=model)
+        self._dispatcher.agent = self._agent
+        self._app.invalidate()
+        return self._agent.provider.name
 
     def message(self, text: str) -> None:
         self._layout_manager.output_pane.append(text)

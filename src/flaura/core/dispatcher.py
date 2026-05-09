@@ -28,6 +28,14 @@ class Dispatcher:
     def thinking(self) -> bool:
         return self._thinking
 
+    @property
+    def agent(self) -> AgentCore:
+        return self._agent
+
+    @agent.setter
+    def agent(self, value: AgentCore) -> None:
+        self._agent = value
+
     def dispatch(self, text: str) -> None:
         if self._current_task is not None and not self._current_task.done():
             self._current_task.cancel()

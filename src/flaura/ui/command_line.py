@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 from prompt_toolkit.completion import Completer, Completion
 
+from flaura.core.commands import _ANTHROPIC_MODELS, _PROVIDERS
+
 if TYPE_CHECKING:
     from flaura.core.app import FlauraApp
     from flaura.core.commands import CommandRegistry
@@ -45,3 +47,13 @@ class CommandCompleter(Completer):
             for p in self._app.list_plugins():
                 if p.name.startswith(rest):
                     yield Completion(p.name, start_position=-len(rest))
+
+        elif cmd == "provider" and len(parts) == 2:
+            for p in _PROVIDERS:
+                if p.startswith(rest):
+                    yield Completion(p, start_position=-len(rest))
+
+        elif cmd == "provider" and len(parts) == 3 and parts[1] == "anthropic":
+            for m in _ANTHROPIC_MODELS:
+                if m.startswith(rest):
+                    yield Completion(m, start_position=-len(rest))

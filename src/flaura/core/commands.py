@@ -86,6 +86,26 @@ def cmd_plugin(app: FlauraApp, args: list[str]) -> str | None:
     return f"unknown subcommand: {sub}"
 
 
+_PROVIDERS = ("anthropic", "echo")
+_ANTHROPIC_MODELS = (
+    "claude-opus-4-7",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001",
+)
+
+
+def cmd_provider(app: FlauraApp, args: list[str]) -> str | None:
+    if not args:
+        return f"provider: {app.provider_name()}"
+    name = args[0]
+    model = args[1] if len(args) > 1 else None
+    try:
+        active = app.set_provider(name, model=model)
+        return f"switched to {active}"
+    except Exception as e:
+        return f"error: {e}"
+
+
 def make_default_registry() -> CommandRegistry:
     reg = CommandRegistry()
     reg.register("quit", cmd_quit)
@@ -93,4 +113,5 @@ def make_default_registry() -> CommandRegistry:
     reg.register("plugins", cmd_plugins)
     reg.register("tools", cmd_tools)
     reg.register("plugin", cmd_plugin)
+    reg.register("provider", cmd_provider)
     return reg

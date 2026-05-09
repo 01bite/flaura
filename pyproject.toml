@@ -21,6 +21,7 @@ flaura = "flaura.entry_points.run_flaura:main"
 # third-party plugins register here
 
 [project.optional-dependencies]
+anthropic = ["anthropic>=0.40"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",

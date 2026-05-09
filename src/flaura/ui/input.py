@@ -34,6 +34,10 @@ class InputPane:
         self._command_completer: Completer | None = None
         self._command_executor: CommandExecutor | None = None
 
+        # Input mode: "normal" (Enter submits) | "multi" (Enter inserts newline).
+        # Toggled with Esc.
+        self._input_mode: str = "normal"
+
         self._default_prompt = DefaultPrompt()
 
         self.buffer = Buffer(
@@ -84,13 +88,17 @@ class InputPane:
             self._command_mode = False
             event.app.invalidate()
 
-        @kb.add("enter")
-        def _submit(event) -> None:
-            event.current_buffer.validate_and_handle()
+        @kb.add("escape", filter=Condition(lambda: not self._command_mode), eager=True)
+        def _toggle_input_mode(event) -> None:
+            self._input_mode = "multi" if self._input_mode == "normal" else "normal"
+            event.app.invalidate()
 
-        @kb.add("escape", "enter")
-        def _newline(event) -> None:
-            event.current_buffer.insert_text("\n")
+        @kb.add("enter")
+        def _on_enter(event) -> None:
+            if self._command_mode or self._input_mode == "normal":
+                event.current_buffer.validate_and_handle()
+            else:
+                event.current_buffer.insert_text("\n")
 
         self.control = BufferControl(buffer=self.buffer, key_bindings=kb)
         self.window = Window(
@@ -119,7 +127,7 @@ class InputPane:
 
     @property
     def mode(self) -> str:
-        return "multi" if "\n" in self.buffer.text else "single"
+        return self._input_mode
 
     @property
     def command_mode(self) -> bool:
