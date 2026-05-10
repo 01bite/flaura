@@ -8,7 +8,7 @@ from flaura.agent.types import AgentChunk, ProviderToolResult, ProviderToolSchem
 
 
 class AgentProvider(ABC):
-    """Adapter for any AI backend (Anthropic, OpenAI, Ollama, …)."""
+    """Adapter for any AI backend (Ollama, …)."""
 
     name: str
 
