@@ -42,8 +42,8 @@ _DEFAULT_CONFIG_TOML = """\
 provider = "echo"
 
 [providers.ollama]
-# Talks to a local Ollama server.  Pull the model first: `ollama pull <name>`.
-model = "llama3.2"
+# Talks to a local Ollama server.  Leave model empty to use the first running model.
+# model = ""
 host = "http://localhost:11434"
 
 [ui]
@@ -86,7 +86,7 @@ class FlauraConfig:
     provider: str = "echo"
 
     # ── providers.ollama ─────────────────────────────────────────────────────
-    ollama_model: str = "llama3.2"
+    ollama_model: str = ""
     ollama_host: str = "http://localhost:11434"
 
     # ── ui ───────────────────────────────────────────────────────────────────

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json
 import time
-import urllib.error
-import urllib.request
 from typing import TYPE_CHECKING
 
 from prompt_toolkit.completion import Completer, Completion
@@ -28,10 +25,10 @@ def _fetch_ollama_models(host: str) -> list[str]:
 
     models: list[str] = []
     try:
-        with urllib.request.urlopen(f"{host.rstrip('/')}/api/tags", timeout=0.5) as r:
-            data = json.load(r)
-        models = [m["name"] for m in data.get("models", []) if "name" in m]
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError):
+        import ollama
+        response = ollama.Client(host=host).list()
+        models = [m.model for m in response.models if m.model]
+    except Exception:
         pass
 
     _ollama_cache[host] = (models, now + _OLLAMA_CACHE_TTL)
