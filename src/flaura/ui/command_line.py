@@ -57,12 +57,7 @@ class CommandCompleter(Completer):
         cmd = parts[0]
         rest = parts[-1]  # last token = what we're currently completing
 
-        if cmd == "set" and len(parts) == 2:
-            for opt in ("vi", "novi"):
-                if opt.startswith(rest):
-                    yield Completion(opt, start_position=-len(rest))
-
-        elif cmd == "plugin" and len(parts) == 2:
+        if cmd == "plugin" and len(parts) == 2:
             for sub in ("install", "remove", "create"):
                 if sub.startswith(rest):
                     yield Completion(sub, start_position=-len(rest))

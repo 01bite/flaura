@@ -11,7 +11,6 @@ from typing import Any
 
 DEFAULT_COLORS: dict[str, str] = {
     "status-bar":                              "bg:#444444 #ffffff bold",
-    "status-bar.vi":                           "bg:#444444 #ff8800 bold",
     "status-bar.thinking":                     "bg:#444444 #00ddff bold",
     "separator":                               "bg:#333333 #555555",
     "prompt":                                  "#00aa00 bold",
@@ -47,7 +46,6 @@ provider = "echo"
 host = "http://localhost:11434"
 
 [ui]
-vi_mode = false
 
 [ui.colors]
 # Override any prompt_toolkit style token.  Keys are CSS-like class names;
@@ -55,7 +53,6 @@ vi_mode = false
 # Uncomment and edit any entry to customise colours.
 #
 # "status-bar"                              = "bg:#444444 #ffffff bold"
-# "status-bar.vi"                           = "bg:#444444 #ff8800 bold"
 # "status-bar.thinking"                     = "bg:#444444 #00ddff bold"
 # "separator"                               = "bg:#333333 #555555"
 # "prompt"                                  = "#00aa00 bold"
@@ -90,7 +87,6 @@ class FlauraConfig:
     ollama_host: str = "http://localhost:11434"
 
     # ── ui ───────────────────────────────────────────────────────────────────
-    vi_mode: bool = False
     colors: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_COLORS))
 
     def __post_init__(self) -> None:
@@ -210,9 +206,7 @@ def _apply_ollama(cfg: FlauraConfig, section: dict[str, Any], config_file: Path 
 
 
 def _apply_ui(cfg: FlauraConfig, section: dict[str, Any], config_file: Path | None) -> None:
-    _warn_unknown_keys(config_file, "ui", section, {"vi_mode", "colors"})
-    if "vi_mode" in section:
-        cfg.vi_mode = bool(section["vi_mode"])
+    _warn_unknown_keys(config_file, "ui", section, {"colors"})
     # [ui.colors] is a sub-table inside the ui section after tomllib parsing
     colors = section.get("colors", {})
     if isinstance(colors, dict):

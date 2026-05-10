@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from prompt_toolkit import Application
-from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.styles import Style
 
 from flaura.agent.core import AgentCore
@@ -48,12 +47,6 @@ class FlauraApp:
 
         self._agent = self._make_provider(self._config.provider)
 
-        if self._config.vi_mode:
-            # Applied after Application is created — stored for __init__ order
-            self._start_in_vi = True
-        else:
-            self._start_in_vi = False
-
         self._dispatcher = Dispatcher(
             output=self._layout_manager.output_pane,
             registry=self._registry,
@@ -67,7 +60,6 @@ class FlauraApp:
             style=Style.from_dict(self._config.colors),
             full_screen=True,
             mouse_support=True,
-            editing_mode=EditingMode.VI if self._config.vi_mode else EditingMode.EMACS,
         )
 
     # ── provider factory ─────────────────────────────────────────────────────
@@ -116,10 +108,6 @@ class FlauraApp:
     def create_plugin(self, name: str):
         from flaura.plugins.loader import create_plugin_scaffold
         return create_plugin_scaffold(name, app_home=self._config.app_home)
-
-    def set_vi_mode(self, on: bool) -> None:
-        self._app.editing_mode = EditingMode.VI if on else EditingMode.EMACS
-        self._app.invalidate()
 
     def set_provider(self, provider_name: str, model: str | None = None) -> str:
         """Switch the active agent provider. Returns the new provider label."""

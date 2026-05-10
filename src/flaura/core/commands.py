@@ -38,18 +38,6 @@ def cmd_quit(app: FlauraApp, args: list[str]) -> str | None:
     return None
 
 
-def cmd_set(app: FlauraApp, args: list[str]) -> str | None:
-    if not args:
-        return "usage: :set vi | :set novi"
-    flag = args[0]
-    if flag == "vi":
-        app.set_vi_mode(True)
-    elif flag == "novi":
-        app.set_vi_mode(False)
-    else:
-        return f"unknown flag: {flag}"
-    return None
-
 
 def cmd_plugins(app: FlauraApp, args: list[str]) -> str | None:
     plugins = app.list_plugins()
@@ -112,7 +100,6 @@ def cmd_provider(app: FlauraApp, args: list[str]) -> str | None:
 def make_default_registry() -> CommandRegistry:
     reg = CommandRegistry()
     reg.register("quit", cmd_quit)
-    reg.register("set", cmd_set)
     reg.register("plugins", cmd_plugins)
     reg.register("tools", cmd_tools)
     reg.register("plugin", cmd_plugin)
