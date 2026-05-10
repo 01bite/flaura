@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 
 class Dispatcher:
+    MAX_TOOL_CALLS_PER_TURN = 25
+
     def __init__(
         self,
         output: OutputPane,
@@ -56,6 +58,7 @@ class Dispatcher:
         self._output.append(f"> {text}\n")
         self._invalidate()
 
+        tool_calls = 0
         try:
             try:
                 tools = self._registry.get_tool_schemas()
@@ -67,7 +70,14 @@ class Dispatcher:
                         self._output.append(chunk.text)
                         self._invalidate()
                     elif chunk.type == "tool_use":
-                        # Run the requested tool through the registry
+                        tool_calls += 1
+                        if tool_calls > self.MAX_TOOL_CALLS_PER_TURN:
+                            self._output.append(
+                                f"\n[aborted: agent exceeded "
+                                f"{self.MAX_TOOL_CALLS_PER_TURN} tool calls in one turn]\n"
+                            )
+                            self._invalidate()
+                            break
                         result = self._registry.execute_tool(
                             chunk.tool_name, chunk.tool_args
                         )
@@ -76,7 +86,6 @@ class Dispatcher:
                             f"\n[{marker}: {chunk.tool_name}] {result.content}\n"
                         )
                         self._invalidate()
-                        # Phase 9 will send the result back to the provider
                     elif chunk.type == "done":
                         self._output.append("\n")
                         self._invalidate()

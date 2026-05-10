@@ -130,30 +130,87 @@ class FlauraConfig:
         except Exception as e:
             sys.stderr.write(f"[flaura] config parse error ({cfg.config_file}): {e}\n")
 
-        # 5. Merge sections
-        _apply_app(cfg, data.get("app", {}))
+        # 5. Merge sections + warn on unknown keys
+        _warn_unknown_keys(cfg.config_file, "<root>", data, {"app", "providers", "ui"})
+        _apply_app(cfg, data.get("app", {}), cfg.config_file)
         providers = data.get("providers", {})
-        _apply_ollama(cfg, providers.get("ollama", {}))
-        _apply_ui(cfg, data.get("ui", {}))
+        _warn_unknown_keys(cfg.config_file, "providers", providers, {"ollama"})
+        _apply_ollama(cfg, providers.get("ollama", {}), cfg.config_file)
+        _apply_ui(cfg, data.get("ui", {}), cfg.config_file)
+
+        # 6. Validate
+        _validate_ollama_host(cfg.ollama_host)
 
         return cfg
 
 
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _warn_unknown_keys(
+    config_file: Path | None,
+    section_name: str,
+    section: dict[str, Any],
+    known: set[str],
+) -> None:
+    if not isinstance(section, dict):
+        return
+    for key in section:
+        if key not in known:
+            sys.stderr.write(
+                f"[flaura] {config_file}: unknown key {key!r} in [{section_name}]\n"
+            )
+
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+
+
+def _validate_ollama_host(host: str) -> None:
+    """Refuse insecure remote Ollama hosts; warn on plain-HTTP remotes."""
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(host)
+    except ValueError:
+        sys.stderr.write(f"[flaura] invalid ollama_host: {host!r}\n")
+        return
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return  # unparseable; let the client raise later
+
+    is_local = hostname in _LOCAL_HOSTS
+
+    if not is_local:
+        if parsed.scheme == "http":
+            sys.stderr.write(
+                f"[flaura] WARNING: ollama_host {host!r} is remote and uses plain HTTP — "
+                f"traffic (including agent prompts and tool calls) is unencrypted.\n"
+            )
+        elif os.environ.get("FLAURA_ALLOW_REMOTE_OLLAMA") != "1":
+            sys.stderr.write(
+                f"[flaura] WARNING: ollama_host {host!r} is non-local. "
+                f"Set FLAURA_ALLOW_REMOTE_OLLAMA=1 to silence this warning.\n"
+            )
+
+
 # ── section appliers ─────────────────────────────────────────────────────────
 
-def _apply_app(cfg: FlauraConfig, section: dict[str, Any]) -> None:
+def _apply_app(cfg: FlauraConfig, section: dict[str, Any], config_file: Path | None) -> None:
+    _warn_unknown_keys(config_file, "app", section, {"provider"})
     if "provider" in section:
         cfg.provider = str(section["provider"])
 
 
-def _apply_ollama(cfg: FlauraConfig, section: dict[str, Any]) -> None:
+def _apply_ollama(cfg: FlauraConfig, section: dict[str, Any], config_file: Path | None) -> None:
+    _warn_unknown_keys(config_file, "providers.ollama", section, {"model", "host"})
     if "model" in section:
         cfg.ollama_model = str(section["model"])
     if "host" in section:
         cfg.ollama_host = str(section["host"])
 
 
-def _apply_ui(cfg: FlauraConfig, section: dict[str, Any]) -> None:
+def _apply_ui(cfg: FlauraConfig, section: dict[str, Any], config_file: Path | None) -> None:
+    _warn_unknown_keys(config_file, "ui", section, {"vi_mode", "colors"})
     if "vi_mode" in section:
         cfg.vi_mode = bool(section["vi_mode"])
     # [ui.colors] is a sub-table inside the ui section after tomllib parsing

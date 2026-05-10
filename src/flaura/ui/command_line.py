@@ -63,7 +63,7 @@ class CommandCompleter(Completer):
                     yield Completion(opt, start_position=-len(rest))
 
         elif cmd == "plugin" and len(parts) == 2:
-            for sub in ("install", "remove"):
+            for sub in ("install", "remove", "create"):
                 if sub.startswith(rest):
                     yield Completion(sub, start_position=-len(rest))
 

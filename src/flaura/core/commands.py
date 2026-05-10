@@ -69,7 +69,7 @@ def cmd_tools(app: FlauraApp, args: list[str]) -> str | None:
 
 def cmd_plugin(app: FlauraApp, args: list[str]) -> str | None:
     if not args:
-        return "usage: :plugin install <git-url> | :plugin remove <name>"
+        return "usage: :plugin install <git-url> | :plugin remove <name> | :plugin create <name>"
     sub = args[0]
     if sub == "install":
         if len(args) < 2:
@@ -82,6 +82,14 @@ def cmd_plugin(app: FlauraApp, args: list[str]) -> str | None:
             app.unregister_plugin(args[1])
             return f"removed plugin: {args[1]}"
         except Exception as e:
+            return f"error: {e}"
+    if sub == "create":
+        if len(args) < 2:
+            return "usage: :plugin create <name>"
+        try:
+            path = app.create_plugin(args[1])
+            return f"created plugin scaffold at {path} — restart flaura to load it"
+        except ValueError as e:
             return f"error: {e}"
     return f"unknown subcommand: {sub}"
 

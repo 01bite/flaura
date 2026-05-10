@@ -113,6 +113,10 @@ class FlauraApp:
         self._registry.unregister(name)
         self._app.invalidate()
 
+    def create_plugin(self, name: str):
+        from flaura.plugins.loader import create_plugin_scaffold
+        return create_plugin_scaffold(name, app_home=self._config.app_home)
+
     def set_vi_mode(self, on: bool) -> None:
         self._app.editing_mode = EditingMode.VI if on else EditingMode.EMACS
         self._app.invalidate()
