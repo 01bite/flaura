@@ -29,7 +29,7 @@ pip install -e ".[ollama]"
 Pull a model if you haven't already:
 
 ```sh
-ollama pull codellama:7b
+ollama pull llama3-groq-tool-use:8 
 ```
 
 ## Run
