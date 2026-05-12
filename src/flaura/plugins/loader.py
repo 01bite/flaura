@@ -6,6 +6,10 @@ Each plugin lives in its own directory:
         plugin.py     — Plugin subclass
         requirements.txt  (optional)
 
+Trust gate: user plugins run as full Python in this process. Discovered
+plugins are NOT loaded until the user trusts them with `:plugin trust <name>`,
+which persists to `<app_home>/plugins/.trusted.json`.
+
 `:plugin install <git-url>` (future) clones a repo into this directory.
 `:plugin create <name>` scaffolds a new plugin folder with a working template.
 """
@@ -13,14 +17,27 @@ Each plugin lives in its own directory:
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import sys
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 
 from flaura.plugins.base import Plugin
 
 _PLUGIN_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_TRUSTED_FILE = ".trusted.json"
+
+
+@dataclass
+class DiscoveredPlugin:
+    """A plugin directory found on disk, possibly not yet trusted."""
+
+    name: str
+    path: Path
+    description: str
+    trusted: bool
 
 
 def user_plugins_dir(app_home: Path | None = None) -> Path:
@@ -30,20 +47,111 @@ def user_plugins_dir(app_home: Path | None = None) -> Path:
     return p
 
 
-def discover_user_plugins(app_home: Path | None = None) -> list[Plugin]:
-    """Walk <app_home>/plugins/ and instantiate every Plugin subclass found."""
-    plugins: list[Plugin] = []
-    root = user_plugins_dir(app_home)
+def _trusted_path(app_home: Path | None = None) -> Path:
+    return user_plugins_dir(app_home) / _TRUSTED_FILE
 
+
+def load_trusted(app_home: Path | None = None) -> set[str]:
+    """Return the set of plugin names the user has explicitly trusted."""
+    path = _trusted_path(app_home)
+    if not path.exists():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        sys.stderr.write(f"[flaura] could not read {path}: {e}\n")
+        return set()
+    if isinstance(data, dict):
+        names = data.get("trusted") or []
+    elif isinstance(data, list):
+        names = data
+    else:
+        names = []
+    return {str(n) for n in names if isinstance(n, str)}
+
+
+def save_trusted(names: set[str], app_home: Path | None = None) -> None:
+    path = _trusted_path(app_home)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps({"trusted": sorted(names)}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    tmp.replace(path)
+
+
+def trust_plugin(name: str, app_home: Path | None = None) -> None:
+    if not _PLUGIN_NAME_RE.match(name):
+        raise ValueError(f"invalid plugin name: {name!r}")
+    plugin_dir = user_plugins_dir(app_home) / name
+    if not plugin_dir.is_dir():
+        raise ValueError(f"no such plugin directory: {plugin_dir}")
+    trusted = load_trusted(app_home)
+    trusted.add(name)
+    save_trusted(trusted, app_home)
+
+
+def untrust_plugin(name: str, app_home: Path | None = None) -> None:
+    trusted = load_trusted(app_home)
+    trusted.discard(name)
+    save_trusted(trusted, app_home)
+
+
+def discover(app_home: Path | None = None) -> list[DiscoveredPlugin]:
+    """List every plugin directory on disk, with its trust status."""
+    root = user_plugins_dir(app_home)
+    trusted = load_trusted(app_home)
+    found: list[DiscoveredPlugin] = []
     for entry in sorted(root.iterdir()):
-        if not entry.is_dir():
+        if not entry.is_dir() or entry.name.startswith("."):
+            continue
+        toml_path = entry / "plugin.toml"
+        description = ""
+        if toml_path.exists():
+            try:
+                with toml_path.open("rb") as f:
+                    meta = tomllib.load(f)
+                description = str(meta.get("description") or "")
+            except Exception:
+                pass
+        found.append(
+            DiscoveredPlugin(
+                name=entry.name,
+                path=entry,
+                description=description,
+                trusted=entry.name in trusted,
+            )
+        )
+    return found
+
+
+def discover_user_plugins(app_home: Path | None = None) -> list[Plugin]:
+    """Walk <app_home>/plugins/ and instantiate every TRUSTED Plugin subclass.
+
+    Untrusted plugins are skipped silently here; the application surfaces a
+    notice to the user separately via `discover()`.
+    """
+    plugins: list[Plugin] = []
+    trusted_names = load_trusted(app_home)
+    untrusted: list[str] = []
+
+    for found in discover(app_home):
+        if found.name not in trusted_names:
+            untrusted.append(found.name)
             continue
         try:
-            plugin = _load_plugin_from_dir(entry)
+            plugin = _load_plugin_from_dir(found.path)
             if plugin is not None:
                 plugins.append(plugin)
         except Exception as e:
-            sys.stderr.write(f"[flaura] failed to load plugin {entry.name}: {e}\n")
+            sys.stderr.write(f"[flaura] failed to load plugin {found.name}: {e}\n")
+
+    if untrusted:
+        sys.stderr.write(
+            f"[flaura] {len(untrusted)} untrusted plugin(s) skipped: "
+            f"{', '.join(untrusted)}. Run `:plugin trust <name>` to enable.\n"
+        )
 
     return plugins
 
@@ -69,7 +177,6 @@ def _load_plugin_from_dir(path: Path) -> Plugin | None:
     if class_name and hasattr(module, class_name):
         cls = getattr(module, class_name)
     else:
-        # Auto-detect: first Plugin subclass in module
         cls = None
         for attr in vars(module).values():
             if isinstance(attr, type) and issubclass(attr, Plugin) and attr is not Plugin:

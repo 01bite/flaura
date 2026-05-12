@@ -12,7 +12,8 @@ license = { text = "MIT" }
 dependencies = [
     "prompt_toolkit>=3.0",
     "pygments>=2.0",
-    "ollama>=0.3"
+    "ollama>=0.3",
+    "jsonschema>=4.0",
 ]
 
 [project.scripts]

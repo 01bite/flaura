@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
 from flaura.agent.providers.base import AgentProvider
-from flaura.agent.types import AgentChunk, ProviderToolSchema
+from flaura.agent.types import AgentChunk, Message, ProviderToolSchema
 
 
 class OllamaProvider(AgentProvider):
@@ -37,8 +38,7 @@ class OllamaProvider(AgentProvider):
         self.name = f"ollama/{resolved}"
         return resolved
 
-    @staticmethod
-    def _format_tools(schemas: list[ProviderToolSchema]) -> list[dict[str, Any]]:
+    def format_tools(self, schemas: list[ProviderToolSchema]) -> list[dict[str, Any]]:
         return [
             {
                 "type": "function",
@@ -51,29 +51,54 @@ class OllamaProvider(AgentProvider):
             for s in schemas
         ]
 
+    @staticmethod
+    def _to_wire_messages(messages: list[Message]) -> list[dict[str, Any]]:
+        wire: list[dict[str, Any]] = []
+        for m in messages:
+            if m.role == "tool":
+                wire.append(
+                    {
+                        "role": "tool",
+                        "content": m.content,
+                        "tool_name": m.tool_name,
+                    }
+                )
+                continue
+            entry: dict[str, Any] = {"role": m.role, "content": m.content}
+            if m.tool_calls:
+                entry["tool_calls"] = [
+                    {
+                        "function": {
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                        }
+                    }
+                    for tc in m.tool_calls
+                ]
+            wire.append(entry)
+        return wire
+
     async def run(
         self,
-        user_input: str,
-        context: str = "",
+        messages: list[Message],
         tools: list[ProviderToolSchema] | None = None,
-        system: str = "",
     ) -> AsyncIterator[AgentChunk]:
         model = await self._resolve_model()
 
-        messages: list[dict[str, Any]] = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": user_input})
-        kwargs: dict[str, Any] = {"model": model, "messages": messages, "stream": True}
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": self._to_wire_messages(messages),
+            "stream": True,
+        }
         has_tools = bool(tools)
         if has_tools:
-            kwargs["tools"] = self._format_tools(tools)
+            kwargs["tools"] = self.format_tools(tools)
 
         async def _open_stream(kw: dict[str, Any]):
-            # The 400 from Ollama for unsupported tools may surface either
-            # on the await (HTTP status check) or on the first __anext__
-            # (when the body starts streaming).  Pull the first chunk inside
-            # the try so both paths are caught.
+            # The 400 from Ollama for unsupported tools may surface either on
+            # the await (HTTP status check) or on the first __anext__ (when
+            # the body starts streaming).  Pull the first chunk inside the try
+            # so both paths are caught.
             stream = await self._client.chat(**kw)
             it = stream.__aiter__()
             first = await it.__anext__()
@@ -110,7 +135,7 @@ class OllamaProvider(AgentProvider):
                     type="tool_use",
                     tool_name=tc.function.name,
                     tool_args=args,
-                    tool_use_id=tc.function.name,
+                    tool_use_id=uuid.uuid4().hex,
                 )
 
         yield AgentChunk(type="done")

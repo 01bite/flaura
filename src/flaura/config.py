@@ -46,6 +46,12 @@ provider = "echo"
 # model = ""
 host = "http://localhost:11434"
 
+[security]
+# Max seconds a single tool call may run before it is cancelled.
+# tool_timeout_s = 30.0
+# Max tool calls the agent may make while answering one user input.
+# max_tool_calls_per_turn = 25
+
 [ui]
 
 [ui.colors]
@@ -90,6 +96,10 @@ class FlauraConfig:
     # ── ui ───────────────────────────────────────────────────────────────────
     colors: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_COLORS))
 
+    # ── security ─────────────────────────────────────────────────────────────
+    tool_timeout_s: float = 30.0
+    max_tool_calls_per_turn: int = 25
+
     def __post_init__(self) -> None:
         if self.config_file is None:
             self.config_file = self.app_home / "config.toml"
@@ -128,12 +138,15 @@ class FlauraConfig:
             sys.stderr.write(f"[flaura] config parse error ({cfg.config_file}): {e}\n")
 
         # 5. Merge sections + warn on unknown keys
-        _warn_unknown_keys(cfg.config_file, "<root>", data, {"app", "providers", "ui"})
+        _warn_unknown_keys(
+            cfg.config_file, "<root>", data, {"app", "providers", "ui", "security"}
+        )
         _apply_app(cfg, data.get("app", {}), cfg.config_file)
         providers = data.get("providers", {})
         _warn_unknown_keys(cfg.config_file, "providers", providers, {"ollama"})
         _apply_ollama(cfg, providers.get("ollama", {}), cfg.config_file)
         _apply_ui(cfg, data.get("ui", {}), cfg.config_file)
+        _apply_security(cfg, data.get("security", {}), cfg.config_file)
 
         # 6. Validate
         _validate_ollama_host(cfg.ollama_host)
@@ -204,6 +217,28 @@ def _apply_ollama(cfg: FlauraConfig, section: dict[str, Any], config_file: Path 
         cfg.ollama_model = str(section["model"])
     if "host" in section:
         cfg.ollama_host = str(section["host"])
+
+
+def _apply_security(
+    cfg: FlauraConfig, section: dict[str, Any], config_file: Path | None
+) -> None:
+    _warn_unknown_keys(
+        config_file, "security", section, {"tool_timeout_s", "max_tool_calls_per_turn"}
+    )
+    if "tool_timeout_s" in section:
+        try:
+            cfg.tool_timeout_s = float(section["tool_timeout_s"])
+        except (TypeError, ValueError):
+            sys.stderr.write(
+                f"[flaura] {config_file}: invalid tool_timeout_s, using default\n"
+            )
+    if "max_tool_calls_per_turn" in section:
+        try:
+            cfg.max_tool_calls_per_turn = int(section["max_tool_calls_per_turn"])
+        except (TypeError, ValueError):
+            sys.stderr.write(
+                f"[flaura] {config_file}: invalid max_tool_calls_per_turn, using default\n"
+            )
 
 
 def _apply_ui(cfg: FlauraConfig, section: dict[str, Any], config_file: Path | None) -> None:

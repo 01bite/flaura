@@ -8,7 +8,8 @@ from flaura.config import FlauraConfig
 from flaura.core.commands import make_default_registry
 from flaura.core.dispatcher import Dispatcher
 from flaura.plugins.builtin import BUILTIN_PLUGINS
-from flaura.plugins.loader import discover_user_plugins
+from flaura.plugins.loader import discover as discover_plugin_dirs
+from flaura.plugins.loader import discover_user_plugins, trust_plugin, untrust_plugin
 from flaura.plugins.registry import PluginRegistry
 from flaura.ui.command_line import CommandCompleter
 from flaura.ui.key_bindings import create_global_key_bindings
@@ -22,7 +23,7 @@ class FlauraApp:
         self._agent: AgentCore | None = None
         self._dispatcher: Dispatcher | None = None
 
-        self._registry = PluginRegistry()
+        self._registry = PluginRegistry(tool_timeout_s=self._config.tool_timeout_s)
         self._commands = make_default_registry(debug=debug)
 
         for plugin_class in BUILTIN_PLUGINS:
@@ -69,13 +70,17 @@ class FlauraApp:
     def _make_provider(self, name: str, model: str | None = None) -> AgentCore:
         if name == "ollama":
             from flaura.agent.providers.ollama import OllamaProvider
-            return AgentCore(OllamaProvider(
+            provider = OllamaProvider(
                 model=model or self._config.ollama_model,
                 host=self._config.ollama_host,
-            ))
-        # default / "echo"
-        from flaura.agent.providers.echo import EchoProvider
-        return AgentCore(EchoProvider())
+            )
+        else:
+            from flaura.agent.providers.echo import EchoProvider
+            provider = EchoProvider()
+        return AgentCore(
+            provider,
+            max_tool_calls=self._config.max_tool_calls_per_turn,
+        )
 
     # ── command-mode executor ────────────────────────────────────────────────
 
@@ -113,6 +118,15 @@ class FlauraApp:
     def create_plugin(self, name: str):
         from flaura.plugins.loader import create_plugin_scaffold
         return create_plugin_scaffold(name, app_home=self._config.app_home)
+
+    def discovered_plugins(self):
+        return discover_plugin_dirs(app_home=self._config.app_home)
+
+    def trust_plugin(self, name: str) -> None:
+        trust_plugin(name, app_home=self._config.app_home)
+
+    def untrust_plugin(self, name: str) -> None:
+        untrust_plugin(name, app_home=self._config.app_home)
 
     def set_provider(self, provider_name: str, model: str | None = None) -> str:
         """Switch the active agent provider. Returns the new provider label."""

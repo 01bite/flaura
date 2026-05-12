@@ -5,11 +5,11 @@ import random
 from collections.abc import AsyncIterator
 
 from flaura.agent.providers.base import AgentProvider
-from flaura.agent.types import AgentChunk, ProviderToolSchema
+from flaura.agent.types import AgentChunk, Message, ProviderToolSchema
 
 
 class EchoProvider(AgentProvider):
-    """Dev/test provider that echoes the user input character-by-character.
+    """Dev/test provider that echoes the latest user message character-by-character.
 
     Simulates a real provider's TTFT delay before the first chunk so the
     `[thinking]` indicator and mid-stream cancellation are observable.
@@ -29,16 +29,19 @@ class EchoProvider(AgentProvider):
 
     async def run(
         self,
-        user_input: str,
-        context: str = "",
+        messages: list[Message],
         tools: list[ProviderToolSchema] | None = None,
-        system: str = "",
     ) -> AsyncIterator[AgentChunk]:
-        # Simulate "thinking time" before first token
+        text = ""
+        for m in reversed(messages):
+            if m.role == "user":
+                text = m.content
+                break
+
         ttft = random.uniform(self._ttft_min, self._ttft_max)
         await asyncio.sleep(ttft)
 
-        for ch in user_input:
+        for ch in text:
             yield AgentChunk(type="text_delta", text=ch)
             if self._delay:
                 await asyncio.sleep(self._delay)

@@ -12,8 +12,6 @@ if TYPE_CHECKING:
 
 
 class Dispatcher:
-    MAX_TOOL_CALLS_PER_TURN = 25
-
     def __init__(
         self,
         output: OutputPane,
@@ -25,6 +23,7 @@ class Dispatcher:
         self._agent = agent
         self._current_task: asyncio.Task | None = None
         self._thinking = False
+        self._agent.set_tool_executor(self._registry.execute_tool_async)
 
     @property
     def thinking(self) -> bool:
@@ -37,6 +36,7 @@ class Dispatcher:
     @agent.setter
     def agent(self, value: AgentCore) -> None:
         self._agent = value
+        self._agent.set_tool_executor(self._registry.execute_tool_async)
 
     def dispatch(self, text: str) -> None:
         if self._current_task is not None and not self._current_task.done():
@@ -54,11 +54,9 @@ class Dispatcher:
         self._thinking = True
         self._invalidate()
 
-        # Echo the user's input
         self._output.append(f"> {text}\n")
         self._invalidate()
 
-        tool_calls = 0
         try:
             try:
                 tools = self._registry.get_tool_schemas()
@@ -70,20 +68,14 @@ class Dispatcher:
                         self._output.append(chunk.text)
                         self._invalidate()
                     elif chunk.type == "tool_use":
-                        tool_calls += 1
-                        if tool_calls > self.MAX_TOOL_CALLS_PER_TURN:
-                            self._output.append(
-                                f"\n[aborted: agent exceeded "
-                                f"{self.MAX_TOOL_CALLS_PER_TURN} tool calls in one turn]\n"
-                            )
-                            self._invalidate()
-                            break
-                        result = self._registry.execute_tool(
-                            chunk.tool_name, chunk.tool_args
-                        )
-                        marker = "tool_error" if result.is_error else "tool"
                         self._output.append(
-                            f"\n[{marker}: {chunk.tool_name}] {result.content}\n"
+                            f"\n[tool_use: {chunk.tool_name}] {chunk.tool_args}\n"
+                        )
+                        self._invalidate()
+                    elif chunk.type == "tool_result":
+                        marker = "tool_error" if chunk.is_error else "tool_result"
+                        self._output.append(
+                            f"[{marker}: {chunk.tool_name}] {chunk.text}\n"
                         )
                         self._invalidate()
                     elif chunk.type == "done":

@@ -58,7 +58,7 @@ class CommandCompleter(Completer):
         rest = parts[-1]  # last token = what we're currently completing
 
         if cmd == "plugin" and len(parts) == 2:
-            for sub in ("install", "remove", "create"):
+            for sub in ("install", "remove", "create", "list", "trust", "untrust"):
                 if sub.startswith(rest):
                     yield Completion(sub, start_position=-len(rest))
 
@@ -66,6 +66,20 @@ class CommandCompleter(Completer):
             for p in self._app.list_plugins():
                 if p.name.startswith(rest):
                     yield Completion(p.name, start_position=-len(rest))
+
+        elif cmd == "plugin" and len(parts) == 3 and parts[1] == "trust":
+            for d in self._app.discovered_plugins():
+                if d.trusted:
+                    continue
+                if d.name.startswith(rest):
+                    yield Completion(d.name, start_position=-len(rest))
+
+        elif cmd == "plugin" and len(parts) == 3 and parts[1] == "untrust":
+            for d in self._app.discovered_plugins():
+                if not d.trusted:
+                    continue
+                if d.name.startswith(rest):
+                    yield Completion(d.name, start_position=-len(rest))
 
         elif cmd == "provider" and len(parts) == 2:
             # If the user has already typed a complete provider that takes a

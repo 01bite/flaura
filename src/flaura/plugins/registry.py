@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 from typing import TYPE_CHECKING, Any
 
 from flaura.plugins.base import Plugin
@@ -9,12 +11,16 @@ if TYPE_CHECKING:
     from flaura.agent.types import ProviderToolSchema
 
 
+DEFAULT_TOOL_TIMEOUT_S = 30.0
+
+
 class PluginRegistry:
     """Holds all registered plugins and a flat tool index for the agent."""
 
-    def __init__(self) -> None:
+    def __init__(self, tool_timeout_s: float = DEFAULT_TOOL_TIMEOUT_S) -> None:
         self._plugins: dict[str, Plugin] = {}
         self._tools: dict[str, Tool] = {}
+        self._tool_timeout_s = tool_timeout_s
 
     def register(self, plugin: Plugin) -> None:
         if plugin.name in self._plugins:
@@ -60,11 +66,12 @@ class PluginRegistry:
         ]
 
     def execute_tool(self, name: str, args: dict[str, Any]) -> ToolResult:
+        """Synchronous tool invocation. Used by the debug `:tool` command."""
         tool = self._tools.get(name)
         if tool is None:
             return ToolResult(content=f"unknown tool: {name}", is_error=True)
 
-        validation_error = _validate_args(args, tool.input_schema)
+        validation_error = validate_args(args, tool.input_schema)
         if validation_error:
             return ToolResult(
                 content=f"invalid arguments for {name}: {validation_error}",
@@ -73,9 +80,96 @@ class PluginRegistry:
 
         try:
             result = tool.handler(**args)
+            if inspect.isawaitable(result):
+                # The caller is synchronous; we cannot await here. Surface a clear error
+                # rather than returning the coroutine object.
+                return ToolResult(
+                    content=(
+                        f"tool {name!r} is async; invoke it through the agent "
+                        f"or call execute_tool_async()"
+                    ),
+                    is_error=True,
+                )
             return ToolResult(content=result, is_error=False)
         except Exception as e:
             return ToolResult(content=f"{type(e).__name__}: {e}", is_error=True)
+
+    async def execute_tool_async(self, name: str, args: dict[str, Any]) -> ToolResult:
+        """Async tool invocation with a timeout. Used by the agent loop."""
+        tool = self._tools.get(name)
+        if tool is None:
+            return ToolResult(content=f"unknown tool: {name}", is_error=True)
+
+        validation_error = validate_args(args, tool.input_schema)
+        if validation_error:
+            return ToolResult(
+                content=f"invalid arguments for {name}: {validation_error}",
+                is_error=True,
+            )
+
+        try:
+            coro = _invoke(tool, args)
+            result = await asyncio.wait_for(coro, timeout=self._tool_timeout_s)
+            return ToolResult(content=result, is_error=False)
+        except TimeoutError:
+            return ToolResult(
+                content=f"tool {name!r} timed out after {self._tool_timeout_s}s",
+                is_error=True,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            return ToolResult(content=f"{type(e).__name__}: {e}", is_error=True)
+
+
+async def _invoke(tool: Tool, args: dict[str, Any]) -> Any:
+    """Call a tool's handler, awaiting it if it's async, threading it if sync."""
+    if inspect.iscoroutinefunction(tool.handler):
+        return await tool.handler(**args)
+    return await asyncio.to_thread(tool.handler, **args)
+
+
+# ── JSON-Schema validation ───────────────────────────────────────────────────
+
+
+def validate_args(args: Any, schema: dict[str, Any]) -> str | None:
+    """Validate `args` against a JSON Schema. Returns an error string or None.
+
+    Uses the `jsonschema` library which supports `$ref`, `oneOf`/`anyOf`/`allOf`,
+    `enum`, `pattern`, nested objects, numeric bounds, length bounds, and the
+    full Draft 2020-12 spec. The validator is cached per schema id so repeated
+    tool calls don't pay the compile cost.
+    """
+    if not isinstance(schema, dict):
+        return None
+
+    try:
+        import jsonschema
+    except ImportError:
+        return _fallback_validate(args, schema)
+
+    validator = _get_validator(jsonschema, schema)
+    errors = sorted(validator.iter_errors(args), key=lambda e: e.path)
+    if not errors:
+        return None
+    first = errors[0]
+    path = "/".join(str(p) for p in first.absolute_path) or "<root>"
+    return f"{path}: {first.message}"
+
+
+_validator_cache: dict[int, Any] = {}
+
+
+def _get_validator(jsonschema_mod: Any, schema: dict[str, Any]) -> Any:
+    key = id(schema)
+    cached = _validator_cache.get(key)
+    if cached is not None:
+        return cached
+    cls = jsonschema_mod.validators.validator_for(schema)
+    cls.check_schema(schema)
+    validator = cls(schema)
+    _validator_cache[key] = validator
+    return validator
 
 
 _JSON_TYPES: dict[str, tuple[type, ...]] = {
@@ -89,13 +183,15 @@ _JSON_TYPES: dict[str, tuple[type, ...]] = {
 }
 
 
-def _validate_args(args: Any, schema: dict[str, Any]) -> str | None:
-    """Minimal JSON-schema validation for tool args. Returns error string or None."""
+def _fallback_validate(args: Any, schema: dict[str, Any]) -> str | None:
+    """Minimal validator used when the `jsonschema` package is unavailable.
+
+    Covers `type`, `required`, `additionalProperties: false`. Anything more
+    complex (`$ref`, `oneOf`, `enum`, `pattern`, nested objects) passes silently.
+    Install `jsonschema` for full coverage.
+    """
     if not isinstance(args, dict):
         return f"expected object, got {type(args).__name__}"
-
-    if not isinstance(schema, dict):
-        return None  # no schema to validate against
 
     properties = schema.get("properties") or {}
     required = schema.get("required") or []
@@ -120,7 +216,6 @@ def _validate_args(args: Any, schema: dict[str, Any]) -> str | None:
         allowed: tuple[type, ...] = tuple(t for typ in types for t in _JSON_TYPES.get(typ, ()))
         if not allowed:
             continue
-        # bool is a subclass of int — exclude it from numeric checks.
         if isinstance(value, bool) and bool not in allowed:
             return f"field {key!r} expected {expected}, got bool"
         if not isinstance(value, allowed):

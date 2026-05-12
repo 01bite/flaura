@@ -39,7 +39,6 @@ def cmd_quit(app: FlauraApp, args: list[str]) -> str | None:
     return None
 
 
-
 def cmd_plugins(app: FlauraApp, args: list[str]) -> str | None:
     plugins = app.list_plugins()
     if not plugins:
@@ -56,9 +55,19 @@ def cmd_tools(app: FlauraApp, args: list[str]) -> str | None:
     return "available tools:\n" + "\n".join(lines)
 
 
+_PLUGIN_USAGE = (
+    "usage: :plugin install <git-url>\n"
+    "       :plugin remove <name>\n"
+    "       :plugin create <name>\n"
+    "       :plugin list\n"
+    "       :plugin trust <name>\n"
+    "       :plugin untrust <name>"
+)
+
+
 def cmd_plugin(app: FlauraApp, args: list[str]) -> str | None:
     if not args:
-        return "usage: :plugin install <git-url> | :plugin remove <name> | :plugin create <name>"
+        return _PLUGIN_USAGE
     sub = args[0]
     if sub == "install":
         if len(args) < 2:
@@ -79,6 +88,36 @@ def cmd_plugin(app: FlauraApp, args: list[str]) -> str | None:
             path = app.create_plugin(args[1])
             return f"created plugin scaffold at {path} — restart flaura to load it"
         except ValueError as e:
+            return f"error: {e}"
+    if sub == "list":
+        found = app.discovered_plugins()
+        if not found:
+            return "no plugins on disk"
+        lines = []
+        for p in found:
+            mark = "✓ trusted" if p.trusted else "  untrusted"
+            desc = f" — {p.description}" if p.description else ""
+            lines.append(f"  {mark}  {p.name}{desc}")
+        return "plugins on disk:\n" + "\n".join(lines)
+    if sub == "trust":
+        if len(args) < 2:
+            return "usage: :plugin trust <name>"
+        try:
+            app.trust_plugin(args[1])
+            return (
+                f"trusted plugin: {args[1]} — restart flaura "
+                f"(or :plugin remove + reload) to load it"
+            )
+        except ValueError as e:
+            return f"error: {e}"
+    if sub == "untrust":
+        if len(args) < 2:
+            return "usage: :plugin untrust <name>"
+        try:
+            app.untrust_plugin(args[1])
+            app.unregister_plugin(args[1])
+            return f"untrusted plugin: {args[1]}"
+        except Exception as e:
             return f"error: {e}"
     return f"unknown subcommand: {sub}"
 
@@ -103,7 +142,7 @@ def cmd_tool(app: FlauraApp, args: list[str]) -> str | None:
     if not args:
         return (
             "usage: :tool <name> [json-args]\n"
-            "  example: :tool mytools_add {\"a\": 1, \"b\": 2}\n"
+            '  example: :tool mytools_add {"a": 1, "b": 2}\n'
             "  example: :tool mytools_hello {}"
         )
 
@@ -124,6 +163,7 @@ def cmd_tool(app: FlauraApp, args: list[str]) -> str | None:
 
 def make_default_registry(debug: bool = False) -> CommandRegistry:
     reg = CommandRegistry()
+    reg.register("q!", cmd_quit)
     reg.register("quit", cmd_quit)
     reg.register("plugins", cmd_plugins)
     reg.register("tools", cmd_tools)
