@@ -17,6 +17,7 @@ class FlauraLayout:
         get_provider_name: Callable[[], str],
         get_thinking: Callable[[], bool],
         get_plugin_count: Callable[[], int],
+        get_debug: Callable[[], bool] = lambda: False,
     ) -> None:
         self.search_toolbar = SearchToolbar()
         self.output_pane = OutputPane(search_buffer_control=self.search_toolbar.control)
@@ -31,6 +32,7 @@ class FlauraLayout:
                 get_provider_name=get_provider_name,
                 get_thinking=get_thinking,
                 get_plugin_count=get_plugin_count,
+                get_debug=get_debug,
             ),
             self.output_pane.window,
             separator,

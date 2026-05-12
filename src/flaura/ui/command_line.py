@@ -84,3 +84,12 @@ class CommandCompleter(Completer):
             for m in _fetch_ollama_models(self._app.ollama_host()):
                 if m.startswith(rest):
                     yield Completion(m, start_position=-len(rest))
+
+        elif cmd == "tool" and len(parts) == 2:
+            for t in self._app.list_tools():
+                if t.name.startswith(rest):
+                    yield Completion(
+                        t.name,
+                        start_position=-len(rest),
+                        display_meta=t.description,
+                    )

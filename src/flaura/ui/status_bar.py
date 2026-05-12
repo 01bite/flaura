@@ -13,6 +13,7 @@ def create_status_bar(
     get_provider_name: Callable[[], str],
     get_thinking: Callable[[], bool],
     get_plugin_count: Callable[[], int],
+    get_debug: Callable[[], bool] = lambda: False,
 ) -> Window:
     def _text() -> StyleAndTextTuples:
         try:
@@ -23,9 +24,11 @@ def create_status_bar(
         provider = get_provider_name()
         n_plugins = get_plugin_count()
         thinking = get_thinking()
+        debug = get_debug()
 
         left = f"flaura · {provider} · {n_plugins} plugins"
         thinking_part = " [thinking] " if thinking else ""
+        debug_part = " [DEBUG] " if debug else ""
 
         if get_mode() == "normal":
             right = " NORMAL "
@@ -34,12 +37,13 @@ def create_status_bar(
             right = " MULTI "
             right_style = "class:mode.multi"
 
-        used = len(left) + len(thinking_part) + len(right)
+        used = len(left) + len(thinking_part) + len(debug_part) + len(right)
         padding = max(0, cols - used)
 
         return [
             ("class:status-bar", left),
             ("class:status-bar.thinking", thinking_part),
+            ("class:status-bar.debug", debug_part),
             ("class:status-bar", " " * padding),
             (right_style, right),
         ]

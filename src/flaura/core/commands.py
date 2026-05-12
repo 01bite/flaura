@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -97,11 +98,37 @@ def cmd_provider(app: FlauraApp, args: list[str]) -> str | None:
         return f"error: {e}"
 
 
-def make_default_registry() -> CommandRegistry:
+def cmd_tool(app: FlauraApp, args: list[str]) -> str | None:
+    """Debug command: directly invoke a tool with JSON args, bypassing the agent."""
+    if not args:
+        return (
+            "usage: :tool <name> [json-args]\n"
+            "  example: :tool mytools_add {\"a\": 1, \"b\": 2}\n"
+            "  example: :tool mytools_hello {}"
+        )
+
+    name = args[0]
+    raw_args = " ".join(args[1:]).strip() or "{}"
+
+    try:
+        parsed = json.loads(raw_args)
+    except json.JSONDecodeError as e:
+        return f"invalid JSON args: {e}"
+    if not isinstance(parsed, dict):
+        return f"args must be a JSON object, got {type(parsed).__name__}"
+
+    result = app.execute_tool(name, parsed)
+    marker = "tool_error" if result.is_error else "tool"
+    return f"[{marker}: {name}] {result.content}"
+
+
+def make_default_registry(debug: bool = False) -> CommandRegistry:
     reg = CommandRegistry()
     reg.register("quit", cmd_quit)
     reg.register("plugins", cmd_plugins)
     reg.register("tools", cmd_tools)
     reg.register("plugin", cmd_plugin)
     reg.register("provider", cmd_provider)
+    if debug:
+        reg.register("tool", cmd_tool)
     return reg

@@ -38,6 +38,28 @@ ollama pull codellama:7b
 flaura
 ```
 
+### Debug mode
+
+```sh
+flaura --debug
+```
+
+Enables direct tool invocation for testing plugins without going through the LLM. A red `[DEBUG]` indicator appears in the status bar, and a new command is available:
+
+```
+:tool <tool_name> <json-args>
+```
+
+Examples:
+
+```
+:tool mytools_hello {"name": "world"}
+:tool mytools_add {"a": 1, "b": 2}
+:tool somethingnoarg {}
+```
+
+Tab-completion lists every registered tool name. Output is appended inline as `[tool: <name>] <result>` (or `[tool_error: <name>] …` on failure). Args are validated against the tool's `input_schema` just like agent-driven calls.
+
 ## Key bindings
 
 | Key | Action |

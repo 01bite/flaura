@@ -12,6 +12,7 @@ from typing import Any
 DEFAULT_COLORS: dict[str, str] = {
     "status-bar":                              "bg:#444444 #ffffff bold",
     "status-bar.thinking":                     "bg:#444444 #00ddff bold",
+    "status-bar.debug":                        "bg:#aa2222 #ffffff bold",
     "separator":                               "bg:#333333 #555555",
     "prompt":                                  "#00aa00 bold",
     "prompt.dots":                             "#555555",

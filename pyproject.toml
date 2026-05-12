@@ -12,16 +12,13 @@ license = { text = "MIT" }
 dependencies = [
     "prompt_toolkit>=3.0",
     "pygments>=2.0",
+    "ollama>=0.3"
 ]
 
 [project.scripts]
 flaura = "flaura.entry_points.run_flaura:main"
 
-[project.entry-points."flaura.plugins"]
-# third-party plugins register here
-
 [project.optional-dependencies]
-ollama = ["ollama>=0.3"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",

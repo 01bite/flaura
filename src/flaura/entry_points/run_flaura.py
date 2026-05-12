@@ -16,6 +16,11 @@ def main() -> None:
         metavar="FILE",
         help="Config file path (default: <app-home>/config.toml)",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug commands (e.g. :tool <name> <json-args> for direct invocation)",
+    )
     args = parser.parse_args()
 
     from flaura.config import FlauraConfig
@@ -26,7 +31,7 @@ def main() -> None:
         config_file=Path(args.config).expanduser() if args.config else None,
     )
 
-    FlauraApp(config=config).run()
+    FlauraApp(config=config, debug=args.debug).run()
 
 
 def run() -> None:

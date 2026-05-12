@@ -16,13 +16,14 @@ from flaura.ui.layout import FlauraLayout
 
 
 class FlauraApp:
-    def __init__(self, config: FlauraConfig | None = None) -> None:
+    def __init__(self, config: FlauraConfig | None = None, debug: bool = False) -> None:
         self._config = config or FlauraConfig.load()
+        self._debug = debug
         self._agent: AgentCore | None = None
         self._dispatcher: Dispatcher | None = None
 
         self._registry = PluginRegistry()
-        self._commands = make_default_registry()
+        self._commands = make_default_registry(debug=debug)
 
         for plugin_class in BUILTIN_PLUGINS:
             self._registry.register(plugin_class())
@@ -38,6 +39,7 @@ class FlauraApp:
             get_provider_name=self.provider_name,
             get_thinking=self.is_thinking,
             get_plugin_count=lambda: len(self._registry.list_plugins()),
+            get_debug=lambda: self._debug,
         )
 
         self._layout_manager.input_pane.set_command_handler(
@@ -100,6 +102,9 @@ class FlauraApp:
 
     def list_tools(self):
         return self._registry.list_tools()
+
+    def execute_tool(self, name: str, args: dict):
+        return self._registry.execute_tool(name, args)
 
     def unregister_plugin(self, name: str) -> None:
         self._registry.unregister(name)
