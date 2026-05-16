@@ -7,6 +7,7 @@ from flaura.agent.core import AgentCore
 from flaura.config import FlauraConfig
 from flaura.core.commands import make_default_registry
 from flaura.core.dispatcher import Dispatcher
+from flaura.knowledge.graph import KnowledgeGraph
 from flaura.plugins.builtin import BUILTIN_PLUGINS
 from flaura.plugins.loader import discover as discover_plugin_dirs
 from flaura.plugins.loader import discover_user_plugins, trust_plugin, untrust_plugin
@@ -50,10 +51,13 @@ class FlauraApp:
 
         self._agent = self._make_provider(self._config.provider)
 
+        self._knowledge = KnowledgeGraph(self._config.app_home / "knowledge" / "graph.json")
+
         self._dispatcher = Dispatcher(
             output=self._layout_manager.output_pane,
             registry=self._registry,
             agent=self._agent,
+            knowledge=self._knowledge,
         )
         self._layout_manager.input_pane.on_submit(self._dispatcher.dispatch)
 

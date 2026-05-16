@@ -20,3 +20,7 @@ class Plugin(ABC):
     def get_tools(self) -> list[Tool]:
         """Return the tools this plugin exposes."""
         ...
+
+    def extract_knowledge(self, tool_result: str) -> tuple[list[dict], list[dict]]:
+        """Extract knowledge from a tool result. Return (nodes, edges) patch."""
+        return [], []
