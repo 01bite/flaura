@@ -7,13 +7,77 @@ style (from FlauraConfig.colors) controls colours, and prompt_toolkit's
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import sys
+import time
 from pathlib import Path
 
 from prompt_toolkit import print_formatted_text
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.styles import BaseStyle
+
+_SPINNER_CHARS = "·•●•"
+_SPINNER_TICK_S = 0.12
+_ANSI_CLEAR_LINE = "\r\033[2K"
+_ANSI_CYAN = "\033[36m"
+_ANSI_DIM = "\033[2m"
+_ANSI_RESET = "\033[0m"
+
+
+class Spinner:
+    """Animated inline progress indicator: `[·•●] message (Ns)`.
+
+    Writes to a single terminal line, updating in place via CR + ANSI erase.
+    """
+
+    def __init__(self) -> None:
+        self._task: asyncio.Task | None = None
+        self._message = "thinking"
+        self._started_at = 0.0
+        self._active = False
+
+    @property
+    def active(self) -> bool:
+        return self._active
+
+    def start(self, message: str = "thinking") -> None:
+        if self._task is not None and not self._task.done():
+            return
+        self._message = message
+        self._started_at = time.monotonic()
+        self._active = True
+        self._task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        self._active = False
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except (asyncio.CancelledError, Exception):
+                pass
+        self._task = None
+        sys.stdout.write(_ANSI_CLEAR_LINE)
+        sys.stdout.flush()
+
+    async def _run(self) -> None:
+        i = 0
+        try:
+            while self._active:
+                elapsed = time.monotonic() - self._started_at
+                char = _SPINNER_CHARS[i % len(_SPINNER_CHARS)]
+                line = (
+                    f"{_ANSI_CLEAR_LINE}"
+                    f"{_ANSI_CYAN}[{char}]{_ANSI_RESET}"
+                    f" {_ANSI_DIM}{self._message} ({elapsed:.0f}s){_ANSI_RESET}"
+                )
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                await asyncio.sleep(_SPINNER_TICK_S)
+                i += 1
+        except asyncio.CancelledError:
+            pass
 
 
 def _cols() -> int:

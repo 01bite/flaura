@@ -21,6 +21,7 @@ DEFAULT_COLORS: dict[str, str] = {
 
     # ── input prompt ──
     "prompt":                                  "#50fa7b bold",
+    "prompt.multi":                            "#ffaa00 bold",
     "prompt.dots":                             "#555555",
     "command-prompt":                          "#ffaa00 bold",
 

@@ -5,6 +5,8 @@ import hashlib
 import time
 from typing import TYPE_CHECKING
 
+from flaura.ui.console import Spinner
+
 if TYPE_CHECKING:
     from flaura.agent.core import AgentCore
     from flaura.knowledge.graph import KnowledgeGraph
@@ -75,23 +77,28 @@ class Dispatcher:
         """One full agent turn: stream the response to the console."""
         self._transcript.append(text)
         start = time.monotonic()
-        system = await asyncio.to_thread(self._knowledge_context, text)
+        spinner = Spinner()
+        spinner.start("thinking")
 
         try:
+            system = await asyncio.to_thread(self._knowledge_context, text)
             tools = self._registry.get_tool_schemas()
             assistant_text = ""
             assistant_started = False
             async for chunk in self._agent.run(text, tools=tools, system=system):
                 if chunk.type == "text_delta":
                     if not assistant_started:
+                        await spinner.stop()
                         self._console.assistant_prefix()
                         assistant_started = True
                     assistant_text += chunk.text
                     self._console.assistant_chunk(chunk.text)
                 elif chunk.type == "tool_use":
+                    await spinner.stop()
                     self._console.ensure_newline()
                     self._console.tool_use(chunk.tool_name, chunk.tool_args)
                 elif chunk.type == "tool_result":
+                    await spinner.stop()
                     self._console.ensure_newline()
                     self._console.tool_result(
                         chunk.tool_name, chunk.text, chunk.is_error
@@ -105,13 +112,16 @@ class Dispatcher:
             await asyncio.to_thread(self._record_turn, text, assistant_text)
 
         except asyncio.CancelledError:
+            await spinner.stop()
             self._console.ensure_newline()
             self._console.info("[cancelled]")
             raise
         except Exception as e:
+            await spinner.stop()
             self._console.ensure_newline()
             self._console.error(f"agent error: {e}")
         finally:
+            await spinner.stop()
             elapsed = time.monotonic() - start
             self._console.ensure_newline()
             self._console.timing(elapsed)

@@ -7,7 +7,7 @@ from pathlib import Path
 def main() -> None:
     parser = argparse.ArgumentParser(prog="flaura", description="Agentic terminal UI")
     parser.add_argument(
-        "--app-home",
+        "--home",
         metavar="DIR",
         help="App home directory (default: ~/.flaura, or $FLAURA_HOME)",
     )
@@ -27,7 +27,7 @@ def main() -> None:
     from flaura.core.app import FlauraApp
 
     config = FlauraConfig.load(
-        app_home=Path(args.app_home).expanduser() if args.app_home else None,
+        app_home=Path(args.home).expanduser() if args.home else None,
         config_file=Path(args.config).expanduser() if args.config else None,
     )
 
