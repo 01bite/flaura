@@ -10,20 +10,48 @@ from typing import Any
 # ── default style tokens (prompt_toolkit class names → style strings) ────────
 
 DEFAULT_COLORS: dict[str, str] = {
-    "status-bar":                              "bg:#444444 #ffffff bold",
-    "status-bar.thinking":                     "bg:#444444 #00ddff bold",
-    "status-bar.debug":                        "bg:#aa2222 #ffffff bold",
-    "separator":                               "bg:#333333 #555555",
-    "prompt":                                  "#00aa00 bold",
+    # ── top banner (3-line header) ──
+    "header":                                  "",
+    "header.pad":                              "",
+    "header.title":                            "#ffffff bold",
+    "header.provider":                         "#50fa7b bold",
+    "header.dim":                              "#666666",
+    "header.cwd":                              "#888888 italic",
+    "header.debug":                            "#ff5555 bold",
+
+    # ── input prompt ──
+    "prompt":                                  "#50fa7b bold",
     "prompt.dots":                             "#555555",
     "command-prompt":                          "#ffaa00 bold",
-    "mode.multi":                              "bg:#333333 #666666",
-    "mode.normal":                             "bg:#50fa7b #000000",
+
+    # ── separators ──
+    "separator":                               "#333333",
+
+    # ── output styles ──
+    "output.user-prompt":                      "#50fa7b bold",
+    "output.user-text":                        "#ffffff",
+    "output.user-cont":                        "#555555",
+    "output.assistant-mark":                   "#00ddff bold",
+    "output.assistant-text":                   "",
+    "output.command-echo":                     "#ffaa00",
+    "output.success":                          "#50fa7b bold",
+    "output.error":                            "#ff5555 bold",
+    "output.timing":                           "#666666 italic",
+    "output.separator":                        "#333333",
+    "output.code":                             "bg:#1a1a1a #f8f8f2",
+    "output.code-fence":                       "bg:#1a1a1a #6272a4",
+    "output.tool-use":                         "#bd93f9",
+    "output.tool-result":                      "#50fa7b",
+    "output.tool-error":                       "#ff5555",
+
+    # ── completion menu ──
     "completion-menu":                         "bg:#2d2d2d #ffffff",
     "completion-menu.completion":              "bg:#2d2d2d #ffffff",
     "completion-menu.completion.current":      "bg:#00aa00 #000000 bold",
     "completion-menu.meta.completion":         "bg:#222222 #888888",
     "completion-menu.meta.completion.current": "bg:#007700 #ffffff",
+
+    # ── scrollbar / search ──
     "scrollbar.background":                    "bg:#1a1a1a",
     "scrollbar.button":                        "bg:#555555",
     "search":                                  "bg:#440044 #ffffff",
